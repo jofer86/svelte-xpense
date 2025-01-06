@@ -1,0 +1,206 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  hashedPassword String
+  role           Role             @default(USER)
+  sessions       Session[]
+  passwordResets PasswordReset[]
+  accounts       Account[]
+  categories     Category[]
+  budgets        Budget[]
+  recurringTransactions RecurringTransaction[]
+  reports              Report[]
+  notifications        Notification[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                    String                @id @default(uuid())
+  userId                String
+  user                  User                  @relation(fields: [userId], references: [id])
+  name                  String
+  type                  String
+  balance               Decimal               @default(0)
+  currency              String
+  transactions          Transaction[]
+  transfersFrom         Transaction[]         @relation("TransferFrom")
+  transfersTo           Transaction[]         @relation("TransferTo")
+  recurringTransactions     RecurringTransaction[]
+  recurringTransfersTo     RecurringTransaction[] @relation("RecurringTransferTo")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@unique([userId, name])
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  name         String
+  type         CategoryType  @default(EXPENSE)
+  color        String        @default("#6B7280")
+  icon         String        @default("📝")
+  transactions Transaction[]
+  budgets      Budget[]
+  recurringTransactions RecurringTransaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([userId, name])
+}
+
+model Transaction {
+  id          String    @id @default(uuid())
+  type        TransactionType
+  amount      Decimal
+  description String
+  date        DateTime
+  accountId   String
+  account     Account   @relation(fields: [accountId], references: [id])
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+  toAccountId String?
+  toAccount   Account?  @relation("TransferTo", fields: [toAccountId], references: [id])
+  fromAccountId String?
+  fromAccount   Account?  @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Budget {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+  amount      Decimal
+  month       DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, categoryId, month])
+}
+
+model RecurringTransaction {
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id])
+  accountId        String
+  account          Account          @relation(fields: [accountId], references: [id])
+  categoryId       String
+  category         Category         @relation(fields: [categoryId], references: [id])
+  type             TransactionType
+  amount           Decimal
+  currency         String
+  description      String?
+  payeePayer      String?
+  transferAccountId String?
+  transferAccount  Account?         @relation("RecurringTransferTo", fields: [transferAccountId], references: [id])
+  frequency        Frequency
+  interval         Int?
+  startDate       DateTime
+  endDate         DateTime?
+  nextOccurrence  DateTime
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Report {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  reportType  ReportType
+  startDate   DateTime
+  endDate     DateTime
+  parameters  Json?
+  reportData  Json
+  createdAt   DateTime  @default(now())
+}
+
+model Notification {
+  id                String            @id @default(uuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  notificationType  NotificationType
+  message           String
+  isRead            Boolean           @default(false)
+  relatedEntityType RelatedEntityType?
+  relatedEntityId   String?
+  createdAt         DateTime          @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum ReportType {
+  SPENDING_BY_CATEGORY
+  INCOME_VS_EXPENSE
+  CASH_FLOW
+  BUDGET_SUMMARY
+  CUSTOM
+}
+
+enum NotificationType {
+  BUDGET_EXCEEDED
+  RECURRING_TRANSACTION_REMINDER
+  LOW_BALANCE_ALERT
+  CUSTOM
+}
+
+enum RelatedEntityType {
+  BUDGET
+  RECURRING_TRANSACTION
+  ACCOUNT
+}
